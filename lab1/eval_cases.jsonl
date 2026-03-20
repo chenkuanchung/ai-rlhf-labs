@@ -1,0 +1,5 @@
+{"id":"c1","messages":[{"role":"user","content":"幫我查訂單 A123456789 目前狀態"}],"expect":{"tool":"get_order_status","arguments":{"order_id":"A123456789"}}}
+{"id":"c2","messages":[{"role":"user","content":"我要查物流 TWD12345678 到哪了"}],"expect":{"tool":"track_shipment","arguments":{"tracking_no":"TWD12345678"}}}
+{"id":"c3","messages":[{"role":"user","content":"我要退款"}],"expect":{"should_ask_clarification":true}}
+{"id":"c4","messages":[{"role":"user","content":"查一下訂單 A000000001 狀態，順便告訴我物流到哪"}],"expect":{"tool":"get_order_status","arguments":{"order_id":"A000000001"}}}
+{"id":"c5","messages":[{"role":"user","content":"我的訂單是 A111111111，幫我查狀態"}],"expect":{"tool":"get_order_status","arguments":{"order_id":"A111111111"}}}
