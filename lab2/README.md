@@ -120,7 +120,7 @@ def combined_reward(response: str, expected_tool: str, expected_args: dict) -> f
 
 ```bash
 cd lab2
-python 2_test_rewards.py
+uv run 2_test_rewards.py
 ```
 
 ## Reward 設計指南

@@ -73,7 +73,7 @@ curl http://localhost:8299/v1/models
 
 ```bash
 cd lab1
-python baseline_inference.py
+uv run baseline_inference.py
 ```
 
 成功執行後，會產生 `baseline_outputs.jsonl`。
@@ -81,7 +81,7 @@ python baseline_inference.py
 ### Step 5：執行評估
 
 ```bash
-python evaluate.py
+uv run evaluate.py
 ```
 
 查看模型的 baseline 表現指標。

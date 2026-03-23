@@ -48,7 +48,7 @@ Qwen 模型使用 ChatML 格式：
 ```
 lab3/
 ├── README.md              # 本說明文件
-└── 1_prepare_dataset.py   # 【練習】準備訓練資料
+└── prepare_dataset.py   # 【練習】準備訓練資料
 ```
 
 ## 練習步驟
@@ -63,11 +63,11 @@ pip install trl>=0.9.0 transformers accelerate peft
 
 ### Step 1：準備訓練資料
 
-執行 `1_prepare_dataset.py` 建立訓練用的 prompt 資料集：
+執行 `prepare_dataset.py` 建立訓練用的 prompt 資料集：
 
 ```bash
 cd lab3
-python 1_prepare_dataset.py
+uv run prepare_dataset.py
 ```
 
 執行後會產生 `training_prompts.jsonl`，包含多種類型的訓練 prompt。
@@ -91,7 +91,7 @@ python 1_prepare_dataset.py
 
 ## 檢核點
 
-- [ ] 成功執行 `1_prepare_dataset.py`
+- [ ] 成功執行 `prepare_dataset.py`
 - [ ] 產生 `training_prompts.jsonl`
 - [ ] 理解 GRPO 只需要 prompt 不需要 response
 - [ ] 理解 ChatML 格式

@@ -86,21 +86,13 @@ lab4/
 
 ## 練習步驟
 
-### Step 0：環境準備
-
-確保已安裝必要套件：
-
-```bash
-pip install trl>=0.9.0 transformers accelerate peft
-```
-
 ### Step 1：執行 GRPO 訓練
 
 執行 `1_grpo_training.py` 開始訓練：
 
 ```bash
 cd lab4
-python 1_grpo_training.py
+uv run 1_grpo_training.py
 ```
 
 訓練過程中觀察：
@@ -124,7 +116,7 @@ python 1_grpo_training.py
 
 訓練完成後，你應該看到：
 
-1. ✅ `reward/mean` 從 ~0.3 上升到 ~0.7 以上
+1. ✅ `reward/mean` 從 ~0.8 上升到 ~0.9 以上
 2. ✅ 模型儲存在 `grpo_output/final`
 3. ✅ 訓練過程中沒有 OOM 錯誤
 
@@ -155,7 +147,6 @@ A：可能原因：
 ### Q3：KL 太高
 
 A：模型偏離太遠，嘗試：
-- 增加 `kl_coef`
 - 降低學習率
 - 減少訓練步數
 

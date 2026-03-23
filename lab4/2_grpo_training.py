@@ -22,10 +22,6 @@ Lab 4：GRPO 訓練主程式
     cd lab4
     python 1_grpo_training.py
 
-⚠️ 注意事項：
-    - 需要 GPU 執行
-    - 建議 VRAM >= 16GB
-    - 首次執行會下載模型（約 6GB）
 """
 
 import sys
@@ -71,22 +67,23 @@ LORA_CONFIG = {
 # GRPO 訓練設定
 GRPO_CONFIG = {
     "output_dir": "./grpo_output",
-    "num_train_epochs": 1,
+    "num_train_epochs": 2,
     "per_device_train_batch_size": 1,
-    "gradient_accumulation_steps": 4,
-    "learning_rate": 5e-5,
-    "logging_steps": 5,
-    "save_steps": 50,
+    "gradient_accumulation_steps": 32,
+    "learning_rate": 2e-6,
+    "logging_steps": 1,
+    "save_steps": 8,
     "max_grad_norm": 1.0,
-    "warmup_ratio": 0.1,
+    "warmup_ratio": 0.07,
     "bf16": True,               # 使用 bfloat16（需要 GPU 支援）
     "gradient_checkpointing": True,  # 節省記憶體
     
     # GRPO 特定參數
-    "num_generations": 4,       # 每個 prompt 生成幾個回答
-    "max_new_tokens": 256,      # 最大生成 token 數
-    "temperature": 0.7,         # 生成溫度
-    "kl_coef": 0.05,           # KL 懲罰係數
+    "beta": 0.01,
+    "num_generations": 8,       # 每個 prompt 生成幾個回答
+    "max_completion_length": 4096,      # 最大生成 token 數
+    "temperature": 0.8,         # 生成溫度
+
 }
 
 
@@ -208,29 +205,6 @@ def compute_reward(response: str, prompt_data: dict) -> float:
     return total_reward
 
 
-def reward_function(completions: List[str], prompts: List[str], **kwargs) -> List[float]:
-    """
-    GRPOTrainer 使用的 reward function
-    
-    Args:
-        completions: 模型生成的回應列表
-        prompts: 對應的 prompt 列表
-        **kwargs: 額外的 metadata
-    
-    Returns:
-        reward 分數列表
-    """
-    rewards = []
-    
-    # 從 kwargs 取得 prompt_data（如果有的話）
-    prompt_data_list = kwargs.get("prompt_data", [{}] * len(completions))
-    
-    for completion, prompt_data in zip(completions, prompt_data_list):
-        reward = compute_reward(completion, prompt_data)
-        rewards.append(reward)
-    
-    return rewards
-
 
 # ==============================================================================
 # 資料準備
@@ -348,8 +322,18 @@ def main():
         remove_unused_columns=False,  # 保留額外欄位
     )
     
-    # 自定義 reward function
-    def reward_fn(completions, prompts, task_type, expected_tool, should_clarify, metadata):
+    # 自定義 reward function（TRL 會傳入 completion_ids、trainer_state 等額外參數）
+    def reward_fn(
+        prompts,
+        completions,
+        task_type=None,
+        expected_tool=None,
+        should_clarify=None,
+        metadata=None,
+        completion_ids=None,
+        trainer_state=None,
+        **kwargs,
+    ):
         """包裝 reward function，接收資料集欄位"""
         rewards = []
         for i, completion in enumerate(completions):
@@ -365,8 +349,7 @@ def main():
     
     trainer = GRPOTrainer(
         model=model,
-        tokenizer=tokenizer,
-        config=grpo_config,
+        args=grpo_config,
         train_dataset=dataset,
         reward_funcs=reward_fn,
     )

@@ -50,7 +50,7 @@ lab5/
 
 ```bash
 cd lab5
-python 1_evaluate_trained.py
+uv run 1_evaluate_trained.py
 ```
 
 ### Step 2：觀察輸出
