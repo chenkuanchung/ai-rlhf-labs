@@ -38,7 +38,7 @@ import string
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from common.utils import save_jsonl, load_jsonl
+from common.utils import save_json
 from common.prompts import system_prompt
 
 
@@ -457,8 +457,8 @@ def main():
         print(f"   - {tool:<28s}: {count}")
 
     # 儲存訓練資料
-    output_file = "training_prompts.jsonl"
-    save_jsonl(prompts, output_file)
+    output_file = "training_prompts.json"
+    save_json(prompts, output_file)
     print(f"\n💾 已儲存至 {output_file}")
 
     # 顯示範例

@@ -7,7 +7,7 @@ Lab 4：GRPO 訓練主程式
     使用 Hugging Face TRL 的 GRPOTrainer 進行 GRPO 訓練。
     
     訓練流程：
-    1. 載入預訓練模型（Qwen2.5-3B-Instruct）
+    1. 載入預訓練模型（Qwen3.5-4B）
     2. 設定 LoRA 進行高效微調
     3. 定義 Reward Function
     4. 執行 GRPO 訓練
@@ -40,7 +40,7 @@ from datasets import Dataset
 from trl import GRPOConfig, GRPOTrainer
 
 # 本專案的模組
-from common.utils import load_jsonl
+from common.utils import load_json
 from common.tool_schema import get_tool_names
 
 
@@ -49,7 +49,7 @@ from common.tool_schema import get_tool_names
 # ==============================================================================
 
 # 模型設定
-MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
+MODEL_NAME = "Qwen/Qwen3.5-4B"
 
 # LoRA 設定
 LORA_CONFIG = {
@@ -83,7 +83,6 @@ GRPO_CONFIG = {
     "num_generations": 8,       # 每個 prompt 生成幾個回答
     "max_completion_length": 4096,      # 最大生成 token 數
     "temperature": 0.8,         # 生成溫度
-
 }
 
 
@@ -214,7 +213,7 @@ def load_training_data(filepath: str) -> Dataset:
     """
     載入訓練資料並轉換為 Dataset 格式
     """
-    data = load_jsonl(filepath)
+    data = load_json(filepath)
     
     # GRPOTrainer 需要 "prompt" 欄位
     dataset_dict = {
@@ -300,7 +299,7 @@ def main():
     
     # Step 1：載入訓練資料
     print("\n📂 載入訓練資料...")
-    training_data_path = "../lab3/training_prompts.jsonl"
+    training_data_path = "../lab3/training_prompts.json"
     
     if not os.path.exists(training_data_path):
         print(f"   ❌ 找不到 {training_data_path}")
