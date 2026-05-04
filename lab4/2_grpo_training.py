@@ -49,12 +49,12 @@ from common.tool_schema import get_tool_names
 # ==============================================================================
 
 # 模型設定
-MODEL_NAME = "Qwen/Qwen3.5-4B"
+MODEL_NAME = "Qwen/Qwen3.5-2B"
 
 # LoRA 設定
 LORA_CONFIG = {
-    "r": 16,                    # LoRA rank
-    "lora_alpha": 32,           # LoRA alpha
+    "r": 8,                    # LoRA rank
+    "lora_alpha": 8,           # LoRA alpha
     "lora_dropout": 0.05,       # Dropout
     "target_modules": [         # 要套用 LoRA 的層
         "q_proj", "k_proj", "v_proj", "o_proj",
@@ -80,9 +80,11 @@ GRPO_CONFIG = {
     
     # GRPO 特定參數
     "beta": 0.01,
-    "num_generations": 8,       # 每個 prompt 生成幾個回答
-    "max_completion_length": 4096,      # 最大生成 token 數
-    "temperature": 0.8,         # 生成溫度
+    "num_generations": 2,       # 每個 prompt 生成幾個回答
+
+    "max_completion_length": 1024,      # 最大生成 token 數
+    "temperature": 0.6,         # 生成溫度
+
 }
 
 
@@ -138,6 +140,9 @@ def compute_reward(response: str, prompt_data: dict) -> float:
     Returns:
         0.0 ~ 1.0 的 reward 分數
     """
+    # TODO
+    print(f"   📝 評分回應：{response}")
+    response = response.strip().split("</think>")[-1].strip()  # 移除思考過程，專注於最終輸出
     
     # 特殊情況：應該追問
     if prompt_data.get("should_clarify", False):
@@ -200,6 +205,7 @@ def compute_reward(response: str, prompt_data: dict) -> float:
     
     # 組合分數
     total_reward = 0.4 * format_score + 0.6 * tool_score
+    print("   格式分數：{:.2f}，工具分數：{:.2f}，總分：{:.2f}".format(format_score, tool_score, total_reward))
     
     return total_reward
 
