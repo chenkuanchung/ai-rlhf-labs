@@ -12,5 +12,6 @@ def call_llm(messages):
     
     response = requests.post("http://127.0.0.1:8299/v1/chat/completions", json=data)
     response = response.json()
-    response_text = response["choices"][0]["message"]
+    
+    response_text = response["choices"][0]["message"]["content"]
     return response_text

@@ -46,7 +46,8 @@ def main():
             prediction = ""
         
         print(prediction)
-        # TODO: 觀察prediction裡面是否有tool call或是自然語言回覆
+        # TODO: 觀察prediction裡面是否有reasoning回覆 </think>
+        # 請移除reasoning的部分，留下tool call回復或是模型的最終回答
 
         
         outputs.append({

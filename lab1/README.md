@@ -4,7 +4,7 @@
 
 完成本 Lab 後，你將能夠：
 
-1. ✅ 成功載入並執行 Qwen2.5-3B 模型推論
+1. ✅ 成功載入並執行 Qwen3.5-4B 模型推論
 2. ✅ 理解「對齊目標」是可量測的
 3. ✅ 產生 baseline 輸出，作為訓練前的對照基準
 
@@ -18,17 +18,18 @@
 
 ### 任務
 
-使用 `eval_cases.jsonl` 中的測試案例，對模型進行推論，並將結果儲存為 `baseline_outputs.jsonl`。
+使用 `eval_cases.json` 中的測試案例，對模型進行推論，並將結果儲存為 `baseline_outputs.json`。
 
 ## 檔案結構
 
 ```
 lab1/
-├── README.md              # 本說明文件
-├── eval_cases.json       # 評估測試案例（已提供）
-├── baseline_inference.py  # 【練習】Baseline 推論程式
-├── evaluate.py            # 【練習】評估腳本
-└── baseline_outputs.json # 【產出】推論結果（執行後產生）
+├── README.md                  # 本說明文件
+├── eval_cases.json            # 評估測試案例（已提供，共 32 筆）
+├── 1_baseline_inference.py    # 【練習】Baseline 推論程式
+├── 2_evaluate.py              # 【練習】評估腳本
+├── baseline_outputs.json      # 【產出】推論結果（執行後產生）
+└── eval_report.json           # 【產出】評估報告（執行後產生）
 ```
 
 ## 練習步驟
@@ -44,7 +45,7 @@ curl http://localhost:8299/v1/models
 
 ### Step 2：理解測試案例格式
 
-查看 `eval_cases.jsonl` 的內容：
+查看 `eval_cases.json` 的內容：
 
 ```json
 {
@@ -61,9 +62,9 @@ curl http://localhost:8299/v1/models
 - `messages`：對話內容（輸入給模型的 prompt）
 - `expect`：期望的輸出（用於評估）
 
-### Step 3：完成 baseline_inference.py
+### Step 3：完成 1_baseline_inference.py
 
-請完成 `baseline_inference.py` 中標記 `TODO` 的部分：
+請完成 `1_baseline_inference.py` 中標記 `TODO` 的部分：
 
 1. 載入測試案例
 2. 對每個案例進行推論
@@ -73,15 +74,15 @@ curl http://localhost:8299/v1/models
 
 ```bash
 cd lab1
-uv run baseline_inference.py
+uv run 1_baseline_inference.py
 ```
 
-成功執行後，會產生 `baseline_outputs.jsonl`。
+成功執行後，會產生 `baseline_outputs.json`。
 
 ### Step 5：執行評估
 
 ```bash
-uv run evaluate.py
+uv run 2_evaluate.py
 ```
 
 查看模型的 baseline 表現指標。
@@ -90,22 +91,28 @@ uv run evaluate.py
 
 | 指標 | 說明 |
 |------|------|
-| `json_valid_rate` | JSON 格式正確率（能被解析的比例）|
-| `tool_correct_rate` | 工具選擇正確率 |
-| `args_correct_rate` | 參數正確率 |
-| `overall_accuracy` | 整體準確率（全部正確）|
+| `valid_rate` | 格式合法率（tool_call 能通過 JSON Schema 驗證的比例）|
+| `tool_acc` | 工具選擇準確率 |
+| `args_exact` | 參數完全相符率（僅計算有 arguments 的案例）|
 
 ## 預期產出
 
 執行完成後，你應該有：
 
-1. ✅ `baseline_outputs.jsonl`：包含 5 筆以上的推論結果
-2. ✅ 評估報告：顯示各項指標的數值
+1. ✅ `baseline_outputs.json`：包含 32 筆推論結果
+2. ✅ `eval_report.json`：詳細評估報告（含每筆案例結果）
+3. ✅ 評估結果接近以下 baseline 數值：
+
+```
+格式合法率     (valid_rate)：62.5%
+工具選擇準確率   (tool_acc)：78.1%
+參數完全相符率 (args_exact)：89.5%
+```
 
 ## 檢核點
 
 - [ ] 能成功執行推論，無 OOM 錯誤
-- [ ] 產生推論結果
+- [ ] 產生 `baseline_outputs.json`（32 筆）與 `eval_report.json`
 - [ ] 能理解各項評估指標的意義
 
 ## 常見問題
