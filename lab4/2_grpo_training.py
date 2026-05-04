@@ -148,9 +148,11 @@ def compute_reward(response: str, prompt_data: dict) -> float:
     if prompt_data.get("should_clarify", False):
         parsed = extract_json_from_text(response)
         if parsed is None:
+            print("   ✅ 正確追問 1.0")
             return 1.0  # 正確地選擇追問
         else:
-            return 0.2  # 不應該輸出 JSON
+            print("   ❌ 應該追問卻輸出 JSON  -0.1")
+            return -0.1  # 不應該輸出 JSON
     
     # 一般情況：檢查 JSON 格式和工具正確性
     parsed = extract_json_from_text(response)

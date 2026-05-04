@@ -1,271 +1,387 @@
-# Lab 6：使用開源專案跑 GRPO 訓練
+# Lab 6 (Bonus)：把一般 LLM 訓練成 Reasoning Model（SFT 冷起動 + GRPO）
 
 ## 學習目標
 
+本 Lab 的主軸是：**把一般的 instruct 模型，改造成具備「先思考、再回答」能力的 reasoning model**。
+
 完成本 Lab 後，你將能夠：
 
-1. ✅ 讀懂真實開源 GRPO 專案的結構與運作方式
-2. ✅ 理解 YAML config 驅動的訓練流程設計
-3. ✅ 使用 Open R1 執行 GRPO 訓練
-4. ✅ 理解 reward function registry 的設計模式
+1. ✅ 解釋一般 LLM 與 reasoning model（如 o1 / DeepSeek-R1）的本質差異
+2. ✅ 解釋為什麼**直接做 GRPO 不夠**，需要 **SFT 冷起動 (cold start)**
+3. ✅ 準備帶有 `<think>...</think>` 推理鏈的 SFT 訓練資料
+4. ✅ 用 SFT 讓 `Qwen2.5-3B-Instruct` 學會以「先思考、再回答」的格式輸出
+5. ✅ 在 SFT 後的模型上接續做 GRPO，強化推理正確率
+6. ✅ 比較 **Base / SFT-only / SFT+GRPO** 三個階段的模型表現
 
-## 背景
 
-在 Lab 2–5 中，我們從零開始手刻了 GRPO 的訓練流程——那像是在「玩玩具」，幫助你理解核心概念。
+**核心直覺**：
 
-但在真實工作中，你不會從頭寫訓練迴圈，而是會使用**成熟的開源專案**。本 Lab 將帶你走過 Hugging Face 官方的 [**Open R1**](https://github.com/huggingface/open-r1) 專案，這是一個完整復現 DeepSeek-R1 訓練流程的開源實作。
-
-```
-Lab 3-5（玩具版）              →    Lab 6（真實專案）
-─────────────────────         ─────────────────────
-手刻 training loop             使用 GRPOTrainer + accelerate
-手動定義 reward function       Reward function registry
-直接寫死參數                   YAML config 管理
-單 GPU                        支援多 GPU / 多節點
-```
-
-## Open R1 專案簡介
-
-Open R1 由 Hugging Face 開發，目標是完整復現 DeepSeek-R1 的訓練流程。
-
-### 核心架構
+> Instruct 模型（如 Qwen2.5-3B-Instruct）原本不會主動輸出 `<think>...</think>`。
+> 如果直接丟給它 GRPO，它得花大量步數「自己摸索」這個格式，
+> 而且很容易陷入只追求 reward、不真正思考的捷徑。
+>
+> **SFT 冷起動**就像幫模型「裝上格式骨架」，
+> 讓它在 GRPO 階段只需要學「怎麼想得更好」，而不是「該怎麼擺格式」。
 
 ```
-open-r1/
-├── src/open_r1/
-│   ├── grpo.py          # GRPO 訓練主程式（進入點）
-│   ├── sft.py           # SFT 訓練主程式
-│   ├── rewards.py       # Reward function 定義（重點！）
-│   ├── configs.py       # 訓練參數定義
-│   └── utils/           # 工具函式
-├── recipes/             # 訓練設定檔（YAML）
-│   ├── DeepSeek-R1-Distill-Qwen-1.5B/grpo/
-│   │   └── config_demo.yaml
-│   ├── Qwen2.5-1.5B-Instruct/grpo/
-│   │   └── config_demo.yaml
-│   └── accelerate_configs/
-│       ├── zero2.yaml
-│       └── zero3.yaml
-└── Makefile             # 快捷指令
+┌──────────────────────────────────────────────────────────────┐
+│  Stage 1：SFT Cold Start                                     │
+│    用少量帶 <think>...</think> 的高品質資料 fine-tune         │
+│    目標：讓模型「習慣」先思考、再回答的輸出格式              │
+├──────────────────────────────────────────────────────────────┤
+│  Stage 2：GRPO                                               │
+│    在 SFT 模型基礎上做強化學習                                │
+│    Reward = 格式分（有正確的 think tag）+ 準確分（答案對不對）│
+│    目標：讓模型「想得更好」、答得更準                        │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+## 任務設定：小學數學應用題（GSM8K）
+
+本 Lab 統一採用 **[GSM8K](https://huggingface.co/datasets/openai/gsm8k)** 作為訓練與評測資料集，原因有三：
+
+1. **答案唯一且為整數**，accuracy reward 極容易設計（數字相等就算對）
+2. **每題都需要多步推理**（2–8 步），能明顯凸顯 `<think>` 的價值
+3. **業界標準 benchmark**，未來看任何 reasoning 論文都會看到它
+
+### GSM8K 資料集規格
+
+| 項目 | 說明 |
+|------|------|
+| HuggingFace ID | `openai/gsm8k` |
+| Config | `main` |
+| Train split | 7,473 題 |
+| Test split | 1,319 題 |
+| 欄位 | `question`（題目）、`answer`（含完整推理過程，最後 `#### N` 為標準答案）|
+
+每筆原始資料長這樣：
+
+```
+question:
+  Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning
+  and bakes muffins for her friends every day with four. She sells the remainder
+  at the farmers' market daily for $2 per fresh duck egg. How much in dollars
+  does she make every day at the farmers' market?
+
+answer:
+  Janet sells 16 - 3 - 4 = <<16-3-4=9>>9 duck eggs a day.
+  She makes 9 * 2 = $<<9*2=18>>18 every day at the farmers' market.
+  #### 18
+```
+
+### 本 Lab 的資料切分（請嚴格遵守，避免資料洩漏）
+
+| 用途 | 來源 | 大小 | 備註 |
+|------|------|------|------|
+| **SFT 冷起動** | `train[:200]` | 200 題 | 把 `answer` 改寫成 `<think>...</think>{最終答案}` 格式 |
+| **GRPO 訓練** | `train[200:1200]` | 1,000 題 | 只用 `question` + `#### N` 的最終答案，不用推理過程 |
+| **Benchmark 評測** | `test[:200]` | 200 題 | 三階段共用同一份題目，**訓練不可看** |
+
+> 想跑得更快？把 SFT 降到 100 題、GRPO 降到 300 題、Benchmark 維持 200 題即可。
+> 想對齊論文？Benchmark 用完整 `test`（1,319 題），但要跑很久。
+
+### 期望的模型輸出格式
+
+```
+<think>
+題目要算 Janet 一天賺多少錢。
+她每天 16 顆蛋，扣掉早餐 3 顆、烤瑪芬 4 顆，剩下 16 - 3 - 4 = 9 顆。
+每顆賣 2 美元，所以 9 * 2 = 18 美元。
+</think>
+18
+```
+
+> **格式約定（評測會嚴格檢查）**：
+> - `<think>...</think>` 必須**完整且只出現一次**
+> - `</think>` 之後就是**最終答案**，可以是純數字或一句話帶數字
+> - 評測時用 regex 從 `</think>` 之後抽出最後一個整數，與 GSM8K 的 `#### N` 比對
+
+## 模型選擇：Qwen2.5-3B-Instruct
+
+
+## 檔案結構（你需要自己建立程式）
+
+```
+lab6/
+├── README.md                       # 本說明文件
+├── 1_prepare_sft_data.py           # 【練習】產生 SFT 冷起動資料
+├── 2_sft_training.py               # 【練習】SFT 訓練
+├── 3_inspect_sft_model.py          # 【練習】觀察 SFT 後模型輸出
+├── 4_grpo_training.py              # 【練習】在 SFT 模型上做 GRPO
+└── 5_evaluate_three_stages.py      # 【練習】比較三階段表現
+```
+
+> 本 Lab 不提供現成程式骨架，請以前面 Lab 4（GRPO）和 TRL 文件為基礎自行實作。
 
 ## 練習步驟
 
 ### Step 0：環境準備
 
 ```bash
-cd lab6/open-r1
+cd lab6
 
-# 建立虛擬環境
-uv venv openr1 --python 3.11
-source openr1/bin/activate  # Linux/Mac
-# Windows: openr1\Scripts\activate
-
-# 安裝依賴
-uv pip install --upgrade pip
-uv pip install vllm==0.8.5.post1
-uv pip install setuptools && uv pip install flash-attn --no-build-isolation
-GIT_LFS_SKIP_SMUDGE=1 uv pip install -e ".[dev]"
+# 沿用根目錄的 .venv 即可（trl / peft / transformers 已安裝）
+# 如需獨立環境：
+# uv venv .venv-lab6 --python 3.11
+# source .venv-lab6/bin/activate
+# uv pip install -r ../requirements.txt
 ```
 
-### Step 1：閱讀原始碼（原始碼導讀）
+確認 GPU 可用：
 
-> **這是本 Lab 最重要的步驟。** 不要急著跑訓練，先讀懂程式碼。
-
-#### 1.1 訓練主程式：`src/open_r1/grpo.py`
-
-這個檔案只有約 180 行，卻完成了整個 GRPO 訓練流程。請仔細閱讀並回答以下問題：
-
-- [ ] **Q1**：`grpo.py` 的 `main()` 做了哪些步驟？（列出 5 個以上）
-- [ ] **Q2**：它怎麼載入 reward function？（提示：看 `get_reward_funcs`）
-- [ ] **Q3**：dataset 的 prompt 是怎麼格式化的？（提示：看 `make_conversation`）
-
-```
-💡 對比 Lab 4 的手刻版本：
-   Lab 4：手動寫 load model → load data → define reward → train → save
-   Open R1：同樣的流程，但用 config + registry 模式組織
+```bash
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 ```
 
-#### 1.2 Reward Functions：`src/open_r1/rewards.py`
+### Step 1：先用 GSM8K Test 跑 Baseline
 
-這是整個專案最值得學習的檔案之一。它展示了如何用 **registry 模式** 管理多個 reward function。
+在動手訓練前，先用**評測集**（`test[:200]`）量出原始模型的分數，當作 Stage 0 baseline。
 
-請閱讀並回答：
-
-- [ ] **Q4**：`accuracy_reward` 怎麼判斷答案是否正確？（提示：用了 `math_verify` 套件）
-- [ ] **Q5**：`format_reward` 檢查什麼格式？期望的輸出結構是什麼？
-- [ ] **Q6**：`tag_count_reward` 和 `format_reward` 有什麼差異？為什麼需要兩個？
-- [ ] **Q7**：`get_reward_funcs()` 怎麼把 YAML 中的字串（如 `"accuracy"`）對應到真正的函式？
+寫一段最簡單的 inference 腳本，把每題丟給 `Qwen/Qwen2.5-3B-Instruct`，記錄：
 
 ```python
-# rewards.py 中的 registry 模式（關鍵設計）
-REWARD_FUNCS_REGISTRY = {
-    "accuracy": accuracy_reward,
-    "format": format_reward,
-    "tag_count": tag_count_reward,
-    "reasoning_steps": reasoning_steps_reward,
-    ...
+from datasets import load_dataset
+ds = load_dataset("openai/gsm8k", "main", split="test").select(range(200))
+# for each item: item["question"] -> 模型輸出；item["answer"] 取 #### 後面的數字當 ground truth
+```
+
+並計算：
+
+- [ ] **`format_rate`**：輸出有正確 `<think>...</think>` 結構的比例（預期：< 10%）
+- [ ] **`accuracy`**：最終答案數字正確的比例（預期：30%–55%）
+- [ ] **觀察**：在 system prompt 強行要求「請在 `<think>` 標籤內思考」，
+  format_rate 能拉到多高？accuracy 有變化嗎？
+
+把結果存到 `lab6/eval_results/stage0_baseline.json`，後面 Step 6 會用到。
+
+> 這一步的目的是**建立動機**：你會發現 prompt engineering 有極限，
+> 要讓模型穩定遵守特定格式並答得準，需要訓練。
+
+### Step 2：準備 SFT 冷起動資料
+
+在 `1_prepare_sft_data.py` 中產生**少量但高品質**的訓練資料（建議 50–200 筆）。
+
+每筆資料的格式：
+
+```json
+{
+  "messages": [
+    {"role": "system", "content": "你是數學助教。請先在 <think> 標籤內逐步推理，再給出最終答案。"},
+    {"role": "user", "content": "小明有 3 顆蘋果，小華有 5 顆，他們一共有幾顆？"},
+    {"role": "assistant", "content": "<think>\n要算總數，把 3 和 5 相加。\n3 + 5 = 8\n</think>\n8"}
+  ]
 }
-# 從 config 讀取需要哪些 reward → 查表取得函式
-reward_funcs = [REWARD_FUNCS_REGISTRY[func] for func in script_args.reward_funcs]
 ```
 
-#### 1.3 訓練設定檔：YAML Config
+資料來源建議（擇一）：
 
-請閱讀 `recipes/Qwen2.5-1.5B-Instruct/grpo/config_demo.yaml`，回答：
+- **方法 A**：用 GSM8K 訓練集前 100 題，**手動或用更強的模型（如 GPT-4o）改寫**成 think 格式
+- **方法 B**：自製 30–50 題涵蓋加減乘除、百分比、簡單應用題
+- **方法 C**：使用現成的 reasoning dataset（如 `openai/gsm8k` + 自行加上 think tag）
 
-- [ ] **Q8**：這個 config 用了哪些 reward function？各自的 weight 是多少？
-- [ ] **Q9**：`num_generations: 16` 代表什麼？和 Lab 4 的 `num_generations: 4` 相比，差異是什麼？
-- [ ] **Q10**：`max_prompt_length` 和 `max_completion_length` 分別控制什麼？
+關鍵設計原則：
 
-### Step 2：理解 Config 驅動的設計
+- [ ] 資料量**少而精**比多而雜更重要（DeepSeek-R1 cold start 也只用了「數千筆」）
+- [ ] `<think>` 內容必須是**真實有用的推理**，不是空話
+- [ ] 答案部分必須**只有最終答案**，不要重複推理過程
 
-Open R1 用 YAML config 管理所有訓練參數，這是業界常見的設計模式：
+完成後輸出：
 
-```yaml
-# recipes/Qwen2.5-1.5B-Instruct/grpo/config_demo.yaml 重點節錄
-
-# 模型設定
-model_name_or_path: Qwen/Qwen2.5-1.5B-Instruct
-
-# 資料設定
-dataset_name: open-r1/OpenR1-Math-220k
-dataset_prompt_column: problem
-system_prompt: "You are a helpful AI Assistant..."
-
-# Reward 設定（可以組合多個！）
-reward_funcs:
-- accuracy      # 答案正確性
-- format        # 格式是否符合 <think>...</think><answer>...</answer>
-- tag_count     # 標籤數量是否正確
-reward_weights:
-- 1.0
-- 1.0
-- 1.0
-
-# 訓練超參數
-num_generations: 16
-learning_rate: 2.0e-05
-per_device_train_batch_size: 16
-gradient_accumulation_steps: 4
+```
+lab6/sft_data.json
 ```
 
-**對比 Lab 4 的硬編碼方式：**
+### Step 3：執行 SFT 訓練
+
+在 `2_sft_training.py` 中，使用 `trl.SFTTrainer` 對 `Qwen2.5-3B-Instruct` 做 LoRA SFT。
+
+關鍵設定（建議）：
 
 ```python
-# Lab 4：參數直接寫在程式碼裡
+MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
+
+LORA_CONFIG = {
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+    "bias": "none",
+    "task_type": "CAUSAL_LM",
+}
+
+SFT_CONFIG = {
+    "output_dir": "./sft_output",
+    "num_train_epochs": 3,
+    "per_device_train_batch_size": 2,
+    "gradient_accumulation_steps": 8,
+    "learning_rate": 2e-4,
+    "bf16": True,
+    "gradient_checkpointing": True,
+    "logging_steps": 1,
+    "save_strategy": "epoch",
+}
+```
+
+訓練重點：
+
+- 使用 4-bit 量化 + LoRA 節省 VRAM
+- 觀察 `loss` 應在 1–2 個 epoch 內降到 < 0.5
+- 把 LoRA adapter 存到 `lab6/sft_output/final/`
+
+### Step 4：觀察 SFT 後的模型
+
+在 `3_inspect_sft_model.py` 中，載入剛訓練好的 SFT 模型，重新問 Step 1 的同一題。
+
+請記錄並回答：
+
+- [ ] **Q1**：SFT 後模型是否**穩定**輸出 `<think>...</think>` 格式？
+- [ ] **Q2**：think 內的內容看起來合理嗎？還是只是模仿格式、實際推理胡來？
+- [ ] **Q3**：拿一道**訓練集裡沒看過**的新題目測試，模型還守得住格式嗎？答案對嗎？
+
+> 你會發現：SFT 後模型「會說人話、會用 think」，
+> 但答案**不一定對**，這正是 GRPO 要解決的事情。
+
+### Step 5：執行 GRPO 訓練（在 SFT 模型上接續訓練）
+
+在 `4_grpo_training.py` 中，**載入 SFT 後的 LoRA adapter** 作為 GRPO 的起點。
+
+兩種掛載方式（擇一）：
+
+1. **連續訓練同一份 LoRA**：`PeftModel.from_pretrained(base_model, "sft_output/final", is_trainable=True)`
+2. **先 merge SFT LoRA 回 base model，再開新的 LoRA 做 GRPO**（推薦，較乾淨）
+
+#### Reward 設計（重點！）
+
+請至少實作兩個 reward function：
+
+```python
+def format_reward(completion: str) -> float:
+    """
+    檢查是否符合 <think>...</think>{answer} 格式。
+    - 完整且只有一組 <think>/</think>：1.0
+    - 缺少 tag：0.0
+    - 多重 tag / 標籤錯位：0.3
+    """
+    ...
+
+def accuracy_reward(completion: str, ground_truth: str) -> float:
+    """
+    從 </think> 之後抽出最終答案，與 ground truth 比對。
+    - 數字完全相等：1.0
+    - 答案錯誤：0.0
+    """
+    ...
+```
+
+組合方式（建議權重）：
+
+```python
+total_reward = 0.3 * format_reward + 0.7 * accuracy_reward
+```
+
+#### GRPO 設定參考
+
+```python
 GRPO_CONFIG = {
-    "num_generations": 4,
-    "learning_rate": 5e-5,
-    ...
+    "output_dir": "./grpo_output",
+    "num_train_epochs": 1,
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 16,
+    "learning_rate": 5e-6,           # GRPO 用較小 LR
+    "num_generations": 4,             # 每題生成 4 個答案做組內比較
+    "max_completion_length": 512,
+    "temperature": 0.8,
+    "beta": 0.04,                     # KL 懲罰
+    "bf16": True,
+    "gradient_checkpointing": True,
+    "logging_steps": 1,
 }
 ```
 
-- [ ] **Q11**：Config 驅動有什麼好處？（提示：想想實驗管理、版本控制、團隊協作）
+訓練時要觀察：
 
-### Step 3：執行 GRPO 訓練
+| 指標 | 期望趨勢 | 備註 |
+|------|----------|------|
+| `reward/mean` | ↑ 上升 | 整體變好 |
+| `reward/format_reward` | 一開始就接近 1.0 | SFT 已經教會格式 |
+| `reward/accuracy_reward` | ↑ 明顯上升 | GRPO 主要在優化這個 |
+| `kl` | 維持小且穩定 | 不要大幅偏離 SFT 模型 |
 
-> ⚠️ 需要 GPU 環境（建議 VRAM >= 24GB）
+> **關鍵觀察點**：如果你**沒做** SFT 直接做 GRPO，
+> `format_reward` 一開始會非常低，整個訓練會花很多步在「學格式」上。
+> SFT cold start 讓 GRPO 從 step 1 就把火力集中在「學會推理」。
 
-#### 方式一：使用 vLLM colocate 模式（單節點）
+### Step 6：三階段比較評估
 
-```bash
-cd lab6/open-r1
+在 `5_evaluate_three_stages.py` 中，準備一份**訓練資料中沒出現過**的 20–30 題小測驗，
+用同一份題目分別測試三個版本的模型：
 
-ACCELERATE_LOG_LEVEL=info \
-    accelerate launch --config_file recipes/accelerate_configs/zero3.yaml \
-    src/open_r1/grpo.py \
-    --config recipes/Qwen2.5-1.5B-Instruct/grpo/config_demo.yaml \
-    --vllm_mode colocate
+| 階段 | 模型 | 預期 |
+|------|------|------|
+| Stage 0 | 原始 `Qwen2.5-3B-Instruct` | 答案有時對，但**幾乎不會用 think tag** |
+| Stage 1 | SFT 後模型 | **穩定使用 think 格式**，答案對的比例略升 |
+| Stage 2 | SFT + GRPO 模型 | 格式守得住、**accuracy 明顯比 SFT 高** |
+
+評估指標：
+
+- `format_rate`：輸出是否包含**正確且唯一**的 `<think>...</think>` 結構
+- `accuracy`：最終答案是否正確
+- 平均 `<think>` 長度（觀察推理是否更詳細）
+
+## 預期結果
+
+完成全部步驟後，你應該能畫出類似這樣的表格：
+
 ```
-
-#### 方式二：手動啟動 vLLM server（適合 debug）
-
-終端機 1 - 啟動 vLLM server：
-
-```bash
-CUDA_VISIBLE_DEVICES=0 trl vllm-serve --model Qwen/Qwen2.5-1.5B-Instruct
+                       format_rate     accuracy     think 平均長度
+Base (Qwen2.5-3B)         5%            55%            -
+SFT (Stage 1)            98%            62%           80 字
+SFT + GRPO (Stage 2)     99%            78%          120 字
 ```
-
-終端機 2 - 啟動訓練：
-
-```bash
-CUDA_VISIBLE_DEVICES=1,2,3,4,5,6,7 ACCELERATE_LOG_LEVEL=info \
-    accelerate launch --config_file recipes/accelerate_configs/zero2.yaml \
-    --num_processes=7 \
-    src/open_r1/grpo.py \
-    --config recipes/Qwen2.5-1.5B-Instruct/grpo/config_demo.yaml
-```
-
-### Step 4：觀察訓練日誌
-
-訓練過程中觀察以下指標：
-
-| 指標 | 說明 | 期望趨勢 |
-|------|------|----------|
-| `reward/accuracy` | 答案正確率 | ↑ 上升 |
-| `reward/format` | 格式正確率 | ↑ 上升 |
-| `reward/tag_count` | 標籤正確率 | ↑ 上升 |
-| `kl` | KL 散度 | 維持穩定 |
-| `loss` | 訓練損失 | ↓ 下降 |
-
-如果有設定 Weights & Biases，可以在 wandb dashboard 上看到即時圖表。
-
-## 重點對比：Lab 4 vs Open R1
-
-| 面向 | Lab 4（手刻版） | Open R1（開源專案） |
-|------|-----------------|---------------------|
-| **程式碼結構** | 單一 Python 檔案 | 模組化（grpo.py, rewards.py, configs.py） |
-| **參數管理** | 寫死在程式碼中 | YAML config + CLI 覆蓋 |
-| **Reward Function** | 直接定義 | Registry 模式，config 指定 |
-| **模型載入** | 手動 + LoRA | 自動處理（含量化、LoRA、PEFT） |
-| **分散式訓練** | 不支援 | DeepSpeed ZeRO-2/3 + 多節點 |
-| **生成加速** | 無 | vLLM backend |
-| **實驗追蹤** | 無 | Weights & Biases 整合 |
 
 ## 檢核點
 
-### 原始碼閱讀（必做）
-
-- [ ] 讀完 `grpo.py`，能說出訓練流程的 5 個步驟
-- [ ] 讀完 `rewards.py`，能解釋 `accuracy_reward` 和 `format_reward` 的差異
-- [ ] 讀完 YAML config，理解每個參數的意義
-- [ ] 回答 Q1–Q11
-
-### 實際執行（選做，需 GPU）
-
-- [ ] 成功啟動 GRPO 訓練
-- [ ] 在日誌中觀察到 reward 上升
-- [ ] 嘗試修改 config 參數（如 `learning_rate`、`num_generations`）重新訓練
+- [ ] 能解釋「為什麼直接 GRPO 不夠」、「cold start 解決了什麼問題」
+- [ ] 成功產出 `sft_data.json`，且每筆資料都有合理的 `<think>` 推理內容
+- [ ] 成功跑完 SFT 訓練，存出 `sft_output/final` 的 LoRA adapter
+- [ ] 觀察到 SFT 後模型**穩定輸出** `<think>...</think>` 格式
+- [ ] 成功在 SFT 模型上跑完 GRPO 訓練
+- [ ] 完成三階段比較表格，並能說明每階段「進步在哪裡」
 
 ## 延伸思考
 
-1. **Reward 組合**：Open R1 支援同時使用多個 reward function 並給予不同權重。為什麼要這麼做？如果只用 `accuracy_reward`，可能會有什麼問題？
-2. **vLLM 加速**：為什麼 Open R1 要用 vLLM 來做生成？和 Lab 4 直接用 `model.generate()` 相比，效能差多少？
-3. **DeepSpeed ZeRO**：`accelerate_configs/` 裡有 `zero2.yaml` 和 `zero3.yaml`，它們分別適用什麼場景？
-4. **想想看**：如果要把 Lab 2 寫的 tool-calling reward function 加進 Open R1 的 registry，你需要修改哪些檔案？
+1. **資料量的取捨**：DeepSeek-R1 的 cold start 只用了「幾千筆」資料，
+   為什麼不直接用幾十萬筆 SFT、跳過 RL？
+2. **Reward hacking**：如果你只用 `format_reward`，模型會學會什麼「壞習慣」？
+3. **think 的真實性**：SFT 後模型 `<think>` 內的推理是「真實的思考」還是「演出來的」？
+   要怎麼區分？GRPO 階段能改善這件事嗎？
+
 
 ## 常見問題
 
-### Q：跑不起來 / OOM
+### Q：SFT loss 不下降 / 一直很高
 
-A：嘗試調小以下參數：
-- `num_generations`：16 → 4
-- `per_device_train_batch_size`：16 → 1
-- `max_completion_length`：1024 → 256
-- 切換到 `zero3.yaml`（記憶體更省）
+A：檢查以下幾點：
+- LoRA `r` 是否太小（試試 16 → 32）
+- Learning rate 是否太低（SFT 通常用 1e-4 ~ 5e-4）
+- 資料的 chat template 是否套對（用 `tokenizer.apply_chat_template` 預先檢查）
 
-### Q：沒有 GPU 怎麼辦？
+### Q：GRPO 階段 reward 反而往下掉
 
-A：本 Lab 的**原始碼閱讀**部分不需要 GPU。請完成 Step 1 和 Step 2 的所有問題，這才是最重要的學習。
+A：常見原因：
+- `learning_rate` 太大，把 SFT 學到的格式打壞了 → 改用 1e-6 ~ 5e-6
+- `beta`（KL 係數）太小，模型亂跑 → 改大到 0.04 ~ 0.1
+- Reward 設計有 bug（特別是 accuracy 抽答案的 regex），先單獨測試 reward function
 
-### Q：vLLM 安裝失敗
+### Q：SFT 後模型輸出 think tag，但內容是亂七八糟的字
 
-A：vLLM 需要 CUDA 12.4+，請確認你的環境：
-```bash
-nvcc --version
-```
+A：你的 SFT 資料品質不夠。請：
+- 檢查是否有重複/錯誤的範例
+- 增加資料的多樣性
+- 或考慮用更強的模型重新生成 think 內容
 
 ---
 
-**恭喜！** 你已經從「手刻玩具」走到「使用真實開源專案」，具備了在實際工作中跑 GRPO 訓練的能力。
+**恭喜！** 你已經實作出一條**「SFT 冷起動 → GRPO」**的完整 pipeline，
+這正是 DeepSeek-R1 等近代 reasoning 模型的核心訓練範式。
+未來再看到「o1-like」、「R1-like」的論文，你就能立刻看懂他們在做什麼。

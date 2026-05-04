@@ -126,6 +126,8 @@ uv run 1_grpo_training.py
 - [ ] 觀察到 reward 指標上升
 - [ ] 理解 GRPO 的運作原理
 - [ ] 理解 KL 散度的作用
+- [ ] （Bonus）嘗試調整訓練參數，例如增加num_generations
+- [ ] （Bonus）嘗試優化獎勵函式，或新增其他的獎勵函式
 
 ## 常見問題
 

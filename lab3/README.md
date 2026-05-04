@@ -96,6 +96,9 @@ uv run prepare_dataset.py
 - [ ] 理解 GRPO 只需要 prompt 不需要 response
 - [ ] 理解 ChatML 格式
 
+## 延伸思考
+1. 如何產生更多訓練資料？
+
 ---
 
 **下一步**：Lab 4 將使用這份資料進行 GRPO 訓練。
