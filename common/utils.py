@@ -45,44 +45,36 @@ def pretty(obj: Any, indent: int = 2) -> str:
     return json.dumps(obj, ensure_ascii=False, indent=indent)
 
 
-def load_jsonl(filepath: str) -> list[dict]:
+def load_json(filepath: str) -> list[dict]:
     """
-    讀取 JSONL 檔案
-    
-    JSONL 格式：每行一個 JSON 物件
+    讀取 JSON 檔案
     
     Args:
         filepath: 檔案路徑
     
     Returns:
-        JSON 物件列表
+        JSON 物件（通常是列表）
     
     Example:
-        >>> cases = load_jsonl("eval_cases.jsonl")
+        >>> cases = load_json("eval_cases.json")
         >>> print(len(cases))
         5
     """
-    results = []
     with open(filepath, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                results.append(json.loads(line))
-    return results
+        return json.load(f)
 
 
-def save_jsonl(data: list[dict], filepath: str) -> None:
+def save_json(data: list[dict], filepath: str) -> None:
     """
-    儲存資料為 JSONL 檔案
+    儲存資料為 JSON 檔案
     
     Args:
-        data: JSON 物件列表
+        data: JSON 物件（通常是列表）
         filepath: 輸出檔案路徑
     
     Example:
         >>> outputs = [{"id": "1", "response": "hello"}]
-        >>> save_jsonl(outputs, "outputs.jsonl")
+        >>> save_json(outputs, "outputs.json")
     """
     with open(filepath, "w", encoding="utf-8") as f:
-        for item in data:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        json.dump(data, f, ensure_ascii=False, indent=2)

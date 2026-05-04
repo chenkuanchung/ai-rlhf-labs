@@ -25,10 +25,10 @@
 ```
 lab1/
 ├── README.md              # 本說明文件
-├── eval_cases.jsonl       # 評估測試案例（已提供）
+├── eval_cases.json       # 評估測試案例（已提供）
 ├── baseline_inference.py  # 【練習】Baseline 推論程式
 ├── evaluate.py            # 【練習】評估腳本
-└── baseline_outputs.jsonl # 【產出】推論結果（執行後產生）
+└── baseline_outputs.json # 【產出】推論結果（執行後產生）
 ```
 
 ## 練習步驟
@@ -105,7 +105,7 @@ uv run evaluate.py
 ## 檢核點
 
 - [ ] 能成功執行推論，無 OOM 錯誤
-- [ ] 產生至少 5 筆推論結果
+- [ ] 產生推論結果
 - [ ] 能理解各項評估指標的意義
 
 ## 常見問題

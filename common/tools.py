@@ -83,6 +83,88 @@ SHIPMENTS = {
     - 其他物流單號：會回傳 TRACKING_NOT_FOUND
 """
 
+ORDER_ITEMS = {
+    "A123456789": [
+        {"sku": "SKU000001", "name": "藍牙耳機", "qty": 1, "price": 1290},
+        {"sku": "SKU000002", "name": "充電線 1m", "qty": 2, "price": 199},
+    ],
+    "A000000001": [
+        {"sku": "SKU000003", "name": "保溫瓶 500ml", "qty": 1, "price": 690},
+    ],
+    "A999999999": [
+        {"sku": "SKU000004", "name": "運動毛巾", "qty": 3, "price": 250},
+    ],
+}
+"""
+模擬的訂單明細資料庫
+
+格式：
+    {
+        "訂單編號": [
+            {"sku": "商品編號", "name": "商品名稱", "qty": 數量, "price": 單價},
+            ...
+        ]
+    }
+"""
+
+REFUND_CASES = {
+    "R100001": {"order_id": "A123456789", "status": "審核中", "amount": 1688},
+    "R100002": {"order_id": "A000000001", "status": "已退款", "amount": 690},
+    "R100003": {"order_id": "A999999999", "status": "已駁回", "amount": 750},
+}
+"""
+模擬的退款案件資料庫
+
+格式：
+    {
+        "退款案件編號": {
+            "order_id": "訂單編號",
+            "status": "審核中 / 已退款 / 已駁回",
+            "amount": 退款金額
+        }
+    }
+"""
+
+COUPONS = {
+    "WELCOME100": {"discount": 100, "min_spend": 500, "expired": False, "applicable": True},
+    "VIP500": {"discount": 500, "min_spend": 3000, "expired": False, "applicable": True},
+    "OLD2024": {"discount": 200, "min_spend": 1000, "expired": True, "applicable": True},
+    "NEWUSERONLY": {"discount": 50, "min_spend": 0, "expired": False, "applicable": False},
+}
+"""
+模擬的優惠券資料庫
+
+測試案例：
+    - WELCOME100、VIP500：可用
+    - OLD2024：已過期 → COUPON_EXPIRED
+    - NEWUSERONLY：不適用此訂單 → COUPON_NOT_APPLICABLE
+    - 其他代碼：INVALID_COUPON
+"""
+
+PRODUCTS = {
+    "SKU000001": {"name": "藍牙耳機", "in_stock_qty": 12, "restock_eta": None},
+    "SKU000002": {"name": "充電線 1m", "in_stock_qty": 0, "restock_eta": "2026-05-01"},
+    "SKU000003": {"name": "保溫瓶 500ml", "in_stock_qty": 5, "restock_eta": None},
+    "SKU000004": {"name": "運動毛巾", "in_stock_qty": 30, "restock_eta": None},
+}
+"""
+模擬的商品庫存資料庫
+
+測試案例：
+    - SKU000001 / SKU000003 / SKU000004：有貨
+    - SKU000002：缺貨，預計 2026-05-01 到貨
+    - 其他 SKU：PRODUCT_NOT_FOUND
+"""
+
+ADDRESSES = {
+    "A000000001": {"recipient": "王小明", "phone": "0912345678", "address": "台北市信義區某路 1 號"},
+    "A123456789": {"recipient": "陳大華", "phone": "0987654321", "address": "新北市板橋區某路 99 號"},
+    "A999999999": {"recipient": "李美麗", "phone": "0922333444", "address": "桃園市中壢區某路 50 號"},
+}
+"""
+模擬的配送地址資料庫（會被 update_shipping_address 修改）
+"""
+
 
 # ==============================================================================
 # 工具函式
@@ -287,6 +369,270 @@ def create_refund_request(
     }
 
 
+def cancel_order(order_id: str) -> Dict[str, Any]:
+    """
+    取消訂單
+
+    根據訂單編號取消訂單。已出貨或已取消的訂單無法取消。
+
+    Args:
+        order_id: 訂單編號
+
+    Returns:
+        成功時：
+        {"ok": True, "order_id": "...", "status": "已取消", "message": "..."}
+
+        失敗時：
+        {"ok": False, "error": "ORDER_NOT_FOUND" | "ORDER_CANNOT_CANCEL", ...}
+
+    使用場景：
+        - 使用者說「幫我取消訂單 A000000001」
+        - 已出貨（A123456789）或已取消（A999999999）會回傳錯誤
+    """
+    time.sleep(0.1)
+
+    if order_id not in ORDERS:
+        return {"ok": False, "error": "ORDER_NOT_FOUND", "order_id": order_id}
+
+    current = ORDERS[order_id]["status"]
+    if current in ("已出貨", "已取消"):
+        return {
+            "ok": False,
+            "error": "ORDER_CANNOT_CANCEL",
+            "order_id": order_id,
+            "current_status": current,
+        }
+
+    ORDERS[order_id]["status"] = "已取消"
+    return {
+        "ok": True,
+        "order_id": order_id,
+        "status": "已取消",
+        "message": "訂單已取消，若已扣款將於 3-5 個工作天內退回。",
+    }
+
+
+def get_order_items(order_id: str) -> Dict[str, Any]:
+    """
+    查詢訂單商品明細
+
+    根據訂單編號查詢該訂單包含的商品（品名、數量、單價、小計）。
+
+    Args:
+        order_id: 訂單編號
+
+    Returns:
+        成功時：
+        {
+            "ok": True,
+            "order_id": "...",
+            "items": [{"sku": "...", "name": "...", "qty": N, "price": N, "subtotal": N}, ...],
+            "total": 總金額
+        }
+
+        失敗時：
+        {"ok": False, "error": "ORDER_NOT_FOUND" | "ITEMS_NOT_FOUND", ...}
+    """
+    time.sleep(0.1)
+
+    if order_id not in ORDERS:
+        return {"ok": False, "error": "ORDER_NOT_FOUND", "order_id": order_id}
+
+    items = ORDER_ITEMS.get(order_id)
+    if not items:
+        return {"ok": False, "error": "ITEMS_NOT_FOUND", "order_id": order_id}
+
+    enriched = [
+        {**it, "subtotal": it["qty"] * it["price"]} for it in items
+    ]
+    total = sum(it["subtotal"] for it in enriched)
+
+    return {
+        "ok": True,
+        "order_id": order_id,
+        "items": enriched,
+        "total": total,
+    }
+
+
+def update_shipping_address(
+    order_id: str,
+    recipient: str,
+    phone: str,
+    address: str,
+) -> Dict[str, Any]:
+    """
+    修改訂單配送地址
+
+    僅在訂單尚未出貨（即「處理中」）時可修改。
+
+    Args:
+        order_id: 訂單編號
+        recipient: 收件人姓名
+        phone: 收件人聯絡電話
+        address: 完整配送地址
+
+    Returns:
+        成功時：
+        {"ok": True, "order_id": "...", "address": {...}, "message": "..."}
+
+        失敗時：
+        {"ok": False, "error": "ORDER_NOT_FOUND" | "ADDRESS_LOCKED", ...}
+    """
+    time.sleep(0.1)
+
+    if order_id not in ORDERS:
+        return {"ok": False, "error": "ORDER_NOT_FOUND", "order_id": order_id}
+
+    status = ORDERS[order_id]["status"]
+    if status != "處理中":
+        return {
+            "ok": False,
+            "error": "ADDRESS_LOCKED",
+            "order_id": order_id,
+            "current_status": status,
+        }
+
+    new_address = {"recipient": recipient, "phone": phone, "address": address}
+    ADDRESSES[order_id] = new_address
+
+    return {
+        "ok": True,
+        "order_id": order_id,
+        "address": new_address,
+        "message": "配送地址已更新。",
+    }
+
+
+def get_refund_status(case_id: str) -> Dict[str, Any]:
+    """
+    查詢退款案件進度
+
+    Args:
+        case_id: 退款案件編號（格式：R + 6 位數字）
+
+    Returns:
+        成功時：
+        {"ok": True, "case_id": "...", "order_id": "...", "status": "...", "amount": N}
+
+        失敗時：
+        {"ok": False, "error": "REFUND_CASE_NOT_FOUND", "case_id": "..."}
+    """
+    time.sleep(0.1)
+
+    if case_id not in REFUND_CASES:
+        return {"ok": False, "error": "REFUND_CASE_NOT_FOUND", "case_id": case_id}
+
+    return {"ok": True, "case_id": case_id, **REFUND_CASES[case_id]}
+
+
+def apply_coupon(order_id: str, coupon_code: str) -> Dict[str, Any]:
+    """
+    套用優惠碼到訂單
+
+    Args:
+        order_id: 訂單編號
+        coupon_code: 優惠碼（英數，例如 WELCOME100）
+
+    Returns:
+        成功時：
+        {"ok": True, "order_id": "...", "coupon_code": "...", "discount": N, "message": "..."}
+
+        失敗時：
+        {"ok": False, "error": "ORDER_NOT_FOUND" | "INVALID_COUPON" | "COUPON_EXPIRED" | "COUPON_NOT_APPLICABLE", ...}
+    """
+    time.sleep(0.1)
+
+    if order_id not in ORDERS:
+        return {"ok": False, "error": "ORDER_NOT_FOUND", "order_id": order_id}
+
+    coupon = COUPONS.get(coupon_code)
+    if coupon is None:
+        return {"ok": False, "error": "INVALID_COUPON", "coupon_code": coupon_code}
+
+    if coupon["expired"]:
+        return {"ok": False, "error": "COUPON_EXPIRED", "coupon_code": coupon_code}
+
+    if not coupon["applicable"]:
+        return {
+            "ok": False,
+            "error": "COUPON_NOT_APPLICABLE",
+            "coupon_code": coupon_code,
+            "order_id": order_id,
+        }
+
+    return {
+        "ok": True,
+        "order_id": order_id,
+        "coupon_code": coupon_code,
+        "discount": coupon["discount"],
+        "message": f"已套用優惠碼，折抵 {coupon['discount']} 元。",
+    }
+
+
+def check_product_stock(sku: str) -> Dict[str, Any]:
+    """
+    查詢商品庫存
+
+    Args:
+        sku: 商品編號（格式：SKU + 6 位數字）
+
+    Returns:
+        成功時：
+        {
+            "ok": True,
+            "sku": "...",
+            "name": "...",
+            "in_stock_qty": N,
+            "restock_eta": "YYYY-MM-DD" | None
+        }
+
+        失敗時：
+        {"ok": False, "error": "PRODUCT_NOT_FOUND", "sku": "..."}
+    """
+    time.sleep(0.1)
+
+    if sku not in PRODUCTS:
+        return {"ok": False, "error": "PRODUCT_NOT_FOUND", "sku": sku}
+
+    return {"ok": True, "sku": sku, **PRODUCTS[sku]}
+
+
+def escalate_to_human(topic: str, summary: str, order_id: str = "") -> Dict[str, Any]:
+    """
+    轉接真人客服
+
+    當問題超出助理可處理範圍時，建立真人客服轉接案件。
+
+    Args:
+        topic: 諮詢主題（必須是預定義選項之一）
+        summary: 案件摘要（簡述使用者問題）
+        order_id: 相關訂單編號（可選）
+
+    Returns:
+        {
+            "ok": True,
+            "ticket_id": "T123456",
+            "topic": "...",
+            "order_id": "...",
+            "summary": "...",
+            "message": "已為您轉接真人客服，預計 X 分鐘內專員會與您聯繫。"
+        }
+    """
+    time.sleep(0.1)
+
+    ticket_id = f"T{random.randint(100000, 999999)}"
+
+    return {
+        "ok": True,
+        "ticket_id": ticket_id,
+        "topic": topic,
+        "order_id": order_id,
+        "summary": summary,
+        "message": "已為您轉接真人客服，預計 5 分鐘內專員會與您聯繫。",
+    }
+
+
 # ==============================================================================
 # 工具註冊表
 # ==============================================================================
@@ -295,6 +641,13 @@ TOOL_REGISTRY = {
     "get_order_status": get_order_status,
     "track_shipment": track_shipment,
     "create_refund_request": create_refund_request,
+    "cancel_order": cancel_order,
+    "get_order_items": get_order_items,
+    "update_shipping_address": update_shipping_address,
+    "get_refund_status": get_refund_status,
+    "apply_coupon": apply_coupon,
+    "check_product_stock": check_product_stock,
+    "escalate_to_human": escalate_to_human,
 }
 """
 工具註冊表

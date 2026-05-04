@@ -31,7 +31,7 @@ from lab2.reward_functions_solution import (
     combined_reward,
     clarification_reward
 )
-from common.utils import load_jsonl, save_jsonl
+from common.utils import load_json, save_json
 
 
 def create_sample_completions():
@@ -272,8 +272,8 @@ def main():
     print(json.dumps(grpo_data[0], ensure_ascii=False, indent=2)[:500] + "...")
     
     # 儲存 GRPO 格式資料
-    output_file = "grpo_sample_data.jsonl"
-    save_jsonl(grpo_data, output_file)
+    output_file = "grpo_sample_data.json"
+    save_json(grpo_data, output_file)
     print(f"\n💾 GRPO 格式資料已儲存至 {output_file}")
     
     # Step 5：統計摘要

@@ -1,0 +1,73 @@
+[
+  {
+    "prompt": "幫我查訂單 A123456789 目前狀態",
+    "completions": [
+      {
+        "text": "{\"type\":\"tool_call\",\"name\":\"get_order_status\",\"arguments\":{\"order_id\":\"A123456789\"}}",
+        "reward": 1.0
+      },
+      {
+        "text": "{\"name\":\"get_order_status\",\"arguments\":{\"order_id\":\"A123456789\"}}",
+        "reward": 0.94
+      },
+      {
+        "text": "{\"type\":\"tool_call\",\"name\":\"track_shipment\",\"arguments\":{\"tracking_no\":\"A123456789\"}}",
+        "reward": 0.5800000000000001
+      },
+      {
+        "text": "{\"type\":\"tool_call\",\"name\":\"get_order_status\",\"arguments\":{\"order\":\"A123456789\"}}",
+        "reward": 0.76
+      },
+      {
+        "text": "好的，我來幫你查詢訂單 A123456789 的狀態...",
+        "reward": 0.0
+      },
+      {
+        "text": "{\"name\":\"get_order_status\",\"arguments\":{\"order_id\":\"A123456789\"",
+        "reward": 0.0
+      }
+    ]
+  },
+  {
+    "prompt": "我要查物流 TWD12345678 到哪了",
+    "completions": [
+      {
+        "text": "{\"type\":\"tool_call\",\"name\":\"track_shipment\",\"arguments\":{\"tracking_no\":\"TWD12345678\"}}",
+        "reward": 1.0
+      },
+      {
+        "text": "{\"type\":\"tool_call\",\"name\":\"track_shipment\",\"arguments\":{\"tracking\":\"TWD12345678\"}}",
+        "reward": 0.76
+      },
+      {
+        "text": "{\"type\":\"tool_call\",\"name\":\"get_order_status\",\"arguments\":{\"order_id\":\"TWD12345678\"}}",
+        "reward": 0.5800000000000001
+      },
+      {
+        "text": "```json\n{\"type\":\"tool_call\",\"name\":\"track_shipment\",\"arguments\":{\"tracking_no\":\"TWD12345678\"}}\n```",
+        "reward": 1.0
+      }
+    ]
+  },
+  {
+    "prompt": "我要退款",
+    "completions": [
+      {
+        "text": "好的，請問您要退款的訂單編號是什麼？退款原因是什麼呢？",
+        "reward": 1.0
+      },
+      {
+        "text": "我需要您的訂單編號和退款原因才能處理，請問訂單編號是？",
+        "reward": 1.0
+      },
+      {
+        "text": "{\"type\":\"tool_call\",\"name\":\"create_refund_request\",\"arguments\":{\"order_id\":\"A000000000\",\"reason\":\"其他\"}}",
+        "reward": 0.0
+      },
+      {
+        "text": "{\"type\":\"tool_call\",\"name\":\"create_refund_request\",\"arguments\":{}}",
+        "reward": 0.5
+      }
+    ]
+  }
+]

@@ -1,15 +1,11 @@
 import json
 
-INPUT_FILE = "baseline_outputs.jsonl"
+INPUT_FILE = "eval_cases.json"
 
 
-def load_jsonl(path: str):
-    rows = []
+def load_json(path: str):
     with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                rows.append(json.loads(line))
-    return rows
+        return json.load(f)
 
 
 def try_parse_json(text: str):
@@ -60,7 +56,7 @@ def evaluate(rows):
 
 
 def main():
-    rows = load_jsonl(INPUT_FILE)
+    rows = load_json(INPUT_FILE)
     evaluate(rows)
 
 

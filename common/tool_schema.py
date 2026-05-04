@@ -144,6 +144,181 @@ TOOLS = [
             "additionalProperties": False
         },
     },
+    # --------------------------------------------------------------------------
+    # 工具 4：取消訂單
+    # --------------------------------------------------------------------------
+    # 已出貨或已取消的訂單會回傳 ORDER_CANNOT_CANCEL
+    {
+        "name": "cancel_order",
+        "description": "取消尚未出貨的訂單（已出貨/已取消無法取消）。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "訂單編號，例如 A123456789",
+                    "pattern": "^[A-Z]\\d{9}$"
+                }
+            },
+            "required": ["order_id"],
+            "additionalProperties": False
+        },
+    },
+
+    # --------------------------------------------------------------------------
+    # 工具 5：查詢訂單商品明細
+    # --------------------------------------------------------------------------
+    # 用於回答「我的訂單買了什麼」、「總共多少錢」這類問題
+    {
+        "name": "get_order_items",
+        "description": "查詢訂單的商品明細（品名、數量、單價、小計、總額）。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "訂單編號，例如 A123456789",
+                    "pattern": "^[A-Z]\\d{9}$"
+                }
+            },
+            "required": ["order_id"],
+            "additionalProperties": False
+        },
+    },
+
+    # --------------------------------------------------------------------------
+    # 工具 6：修改訂單配送地址
+    # --------------------------------------------------------------------------
+    # 4 個參數全部必填，避免使用者只給部分資訊就送出
+    # 已出貨後會回傳 ADDRESS_LOCKED
+    {
+        "name": "update_shipping_address",
+        "description": "修改尚未出貨訂單的配送地址（姓名、電話、地址三者皆必填）。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "訂單編號，例如 A123456789",
+                    "pattern": "^[A-Z]\\d{9}$"
+                },
+                "recipient": {
+                    "type": "string",
+                    "description": "收件人姓名"
+                },
+                "phone": {
+                    "type": "string",
+                    "description": "收件人聯絡電話，例如 0912345678",
+                    "pattern": "^09\\d{8}$"
+                },
+                "address": {
+                    "type": "string",
+                    "description": "完整配送地址（含縣市、區、路名、門牌）"
+                }
+            },
+            "required": ["order_id", "recipient", "phone", "address"],
+            "additionalProperties": False
+        },
+    },
+
+    # --------------------------------------------------------------------------
+    # 工具 7：查詢退款案件進度
+    # --------------------------------------------------------------------------
+    # 注意：這裡用退款「案件編號」（R + 6 位數字），不是訂單編號
+    {
+        "name": "get_refund_status",
+        "description": "查詢退款案件的處理進度（審核中/已退款/已駁回），需要退款案件編號。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "case_id": {
+                    "type": "string",
+                    "description": "退款案件編號，例如 R100001",
+                    "pattern": "^R\\d{6}$"
+                }
+            },
+            "required": ["case_id"],
+            "additionalProperties": False
+        },
+    },
+
+    # --------------------------------------------------------------------------
+    # 工具 8：套用優惠碼
+    # --------------------------------------------------------------------------
+    # 優惠碼為英數大寫，例如 WELCOME100、VIP500
+    {
+        "name": "apply_coupon",
+        "description": "將優惠碼套用到指定訂單（會檢查是否過期、是否適用）。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "訂單編號，例如 A123456789",
+                    "pattern": "^[A-Z]\\d{9}$"
+                },
+                "coupon_code": {
+                    "type": "string",
+                    "description": "優惠碼（英數大寫），例如 WELCOME100",
+                    "pattern": "^[A-Z0-9]{4,20}$"
+                }
+            },
+            "required": ["order_id", "coupon_code"],
+            "additionalProperties": False
+        },
+    },
+
+    # --------------------------------------------------------------------------
+    # 工具 9：查詢商品庫存
+    # --------------------------------------------------------------------------
+    # 商品編號格式：SKU + 6 位數字
+    {
+        "name": "check_product_stock",
+        "description": "查詢商品的目前庫存量與補貨預計到貨日。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sku": {
+                    "type": "string",
+                    "description": "商品編號（SKU），例如 SKU000001",
+                    "pattern": "^SKU\\d{6}$"
+                }
+            },
+            "required": ["sku"],
+            "additionalProperties": False
+        },
+    },
+
+    # --------------------------------------------------------------------------
+    # 工具 10：轉接真人客服
+    # --------------------------------------------------------------------------
+    # 當問題超出助理可處理範圍時，建立真人客服轉接案件
+    # topic 用 enum 限定主題；order_id 為選填
+    {
+        "name": "escalate_to_human",
+        "description": "將案件轉接給真人客服處理（適用於投訴、複雜爭議或助理無法解決的情況）。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "諮詢主題分類",
+                    "enum": ["帳務", "物流", "商品", "退換貨", "其他"]
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "案件摘要（簡述使用者的問題或需求）"
+                },
+                "order_id": {
+                    "type": "string",
+                    "description": "相關訂單編號（可選）",
+                    "pattern": "^[A-Z]\\d{9}$"
+                }
+            },
+            "required": ["topic", "summary"],
+            "additionalProperties": False
+        },
+    }
 ]
 
 
