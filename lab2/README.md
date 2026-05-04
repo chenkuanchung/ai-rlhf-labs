@@ -56,7 +56,7 @@ lab2/
 ├── README.md                    # 本說明文件
 ├── 1_reward_functions.py        # 【練習】Reward 函式實作
 ├── 2_test_rewards.py            # 【練習】測試 Reward 函式
-└── sample_completions.jsonl     # 範例資料（用於測試）
+└── sample_completions.json     # 範例資料（用於測試）
 ```
 
 ## 練習步驟

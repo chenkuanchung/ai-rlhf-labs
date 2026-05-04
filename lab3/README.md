@@ -92,7 +92,7 @@ uv run prepare_dataset.py
 ## 檢核點
 
 - [ ] 成功執行 `prepare_dataset.py`
-- [ ] 產生 `training_prompts.jsonl`
+- [ ] 產生 `training_prompts.json`
 - [ ] 理解 GRPO 只需要 prompt 不需要 response
 - [ ] 理解 ChatML 格式
 
