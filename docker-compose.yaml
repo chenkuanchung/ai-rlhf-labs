@@ -11,6 +11,7 @@ services:
 
     environment:
       NVIDIA_VISIBLE_DEVICES: "0"
+      VLLM_USE_V1: "0"
 
     volumes:
       - ./:/workspace
@@ -21,12 +22,14 @@ services:
     ipc: host
     # entrypoint: ["/workspace/entrypoint.sh"]
 
-    command: >  # 改model names
-      --model Qwen/Qwen3.5-4B
+    command: >
+      --model Qwen/Qwen3.5-2B
       --host 0.0.0.0
       --port 8000
-      --served-model-name Qwen/Qwen3.5-4B
-      --max-model-len 10240
-      --kv-cache-dtype auto
-      -tp 1
-      --gpu-memory-utilization 0.9
+      --served-model-name qwen-base
+      --max-model-len 8096
+      --enable-lora
+      --lora-modules qwen-grpo=/workspace/lab4/grpo_output/final
+      --gpu-memory-utilization 0.7
+      --enforce-eager
+      --trust-remote-code

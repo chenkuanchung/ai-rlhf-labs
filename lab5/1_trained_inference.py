@@ -9,7 +9,8 @@ from common.prompts import system_prompt
 
 LAB_DIR = Path(__file__).parent
 INPUT_FILE = LAB_DIR / "eval_cases.json"
-OUTPUT_FILE = LAB_DIR / "baseline_outputs.json"
+OUTPUT_FILE = LAB_DIR / "trained_outputs.json"
+MODEL_NAME = "qwen-grpo"
 
 
 def load_json(path: Path):
@@ -31,7 +32,7 @@ def run_inference(case):
     # 假設 case["messages"] 是一個 list of dicts (例如: [{"role": "user", "content": "..."}])
     messages.extend(case["messages"])
     
-    return call_llm(messages)
+    return call_llm(messages, model=MODEL_NAME)
 
 
 def main():

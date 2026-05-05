@@ -67,9 +67,9 @@ LORA_CONFIG = {
 # GRPO 訓練設定
 GRPO_CONFIG = {
     "output_dir": "./grpo_output",
-    "num_train_epochs": 2,
+    "num_train_epochs": 3,
     "per_device_train_batch_size": 1,
-    "gradient_accumulation_steps": 32,
+    "gradient_accumulation_steps": 4,
     "learning_rate": 2e-6,
     "logging_steps": 1,
     "save_steps": 8,
@@ -80,9 +80,9 @@ GRPO_CONFIG = {
     
     # GRPO 特定參數
     "beta": 0.01,
-    "num_generations": 2,       # 每個 prompt 生成幾個回答
+    "num_generations": 4,       # 每個 prompt 生成幾個回答
 
-    "max_completion_length": 1024,      # 最大生成 token 數
+    "max_completion_length": 256,     # 最大生成 token 數
     "temperature": 0.6,         # 生成溫度
 
 }

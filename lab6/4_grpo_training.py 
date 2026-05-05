@@ -1,0 +1,158 @@
+import json
+import re
+import torch
+from datasets import load_dataset
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import PeftModel, prepare_model_for_kbit_training
+from trl import GRPOTrainer, GRPOConfig
+
+# ==========================================
+# 設定區
+# ==========================================
+MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
+SFT_ADAPTER_PATH = "./sft_output/final"  # 💡 這是你 SFT 訓練產生的模型路徑
+OUTPUT_DIR = "./grpo_output"
+
+# ==========================================
+# 1. 資料集準備 (GSM8K)
+# ==========================================
+def prepare_grpo_dataset():
+    print("📥 正在載入 GSM8K 資料集 (取 train[200:1200] 作為 GRPO 訓練)...")
+    # 嚴格遵守 Lab 規定，避開前 200 題 SFT 資料
+    dataset = load_dataset("openai/gsm8k", "main", split="train[200:1200]")
+    
+    def format_grpo_data(item):
+        # 萃取標準答案 (#### 後面的數字)
+        gt_answer = item["answer"].split("####")[1].strip()
+        
+        # 組合 prompt
+        prompt = [
+            {"role": "system", "content": "你是數學助教。請先在 <think> 標籤內逐步推理，再給出最終答案。"},
+            {"role": "user", "content": item["question"]}
+        ]
+        
+        # GRPO 只需要 prompt 和 answer，模型會自己生成 reasoning 過程
+        return {"prompt": prompt, "answer": gt_answer}
+        
+    formatted_dataset = dataset.map(format_grpo_data)
+    print(f"✅ 成功載入 {len(formatted_dataset)} 筆 GRPO 訓練資料。")
+    return formatted_dataset
+
+# ==========================================
+# 2. Reward 獎勵函數設計 (最核心的邏輯)
+# ==========================================
+
+# (A) 格式獎勵函數 (最高 0.3 分)
+def format_reward(prompts, completions, **kwargs):
+    rewards = []
+    for comp in completions:
+        # TRL 新版格式，completion 可能是 list of dict 或純字串
+        text = comp[-1]["content"] if isinstance(comp, list) else comp
+        
+        count_open = text.count("<think>")
+        count_close = text.count("</think>")
+        
+        # 完美格式：各有一個標籤，且先開後關
+        if count_open == 1 and count_close == 1 and text.find("<think>") < text.find("</think>"):
+            rewards.append(0.3)
+        # 殘缺格式：至少有出現標籤
+        elif count_open > 0 or count_close > 0:
+            rewards.append(0.1)
+        # 亂答：完全沒有標籤
+        else:
+            rewards.append(0.0)
+    return rewards
+
+# (B) 準確度獎勵函數 (最高 0.7 分)
+def accuracy_reward(prompts, completions, answer, **kwargs):
+    rewards = []
+    for comp, gt in zip(completions, answer):
+        text = comp[-1]["content"] if isinstance(comp, list) else comp
+        
+        # 從 </think> 之後切出最終答案區塊
+        if "</think>" in text:
+            tail_text = text.split("</think>")[-1]
+        else:
+            tail_text = text
+            
+        # 用正則表達式找出 tail_text 裡面的所有數字 (支援負號與小數點)
+        nums = re.findall(r'-?\d+(?:\.\d+)?', tail_text.replace(',', ''))
+        
+        # 取最後一個數字與 Ground Truth (gt) 比對
+        if nums and nums[-1] == str(gt):
+            rewards.append(0.7)
+        else:
+            rewards.append(0.0)
+    return rewards
+
+# ==========================================
+# 3. 主程式
+# ==========================================
+def main():
+    print("=" * 50)
+    print("🚀 Lab 6: 開始 GRPO 強化學習")
+    print("=" * 50)
+
+    dataset = prepare_grpo_dataset()
+    
+    print("📦 載入 Tokenizer...")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    print("📦 載入基礎模型 (4-bit)...")
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_use_double_quant=True,
+    )
+    base_model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        quantization_config=bnb_config,
+        device_map="auto",
+        trust_remote_code=True,
+    )
+    base_model = prepare_model_for_kbit_training(base_model)
+    
+    print(f"🔧 正在掛載 SFT LoRA 權重並設定為可訓練 ({SFT_ADAPTER_PATH})...")
+    # 💡 關鍵：is_trainable=True 讓我們可以繼續訓練這個 SFT 產生的 LoRA Adapter
+    model = PeftModel.from_pretrained(base_model, SFT_ADAPTER_PATH, is_trainable=True)
+    model.print_trainable_parameters()
+
+    print("⏳ 設定 GRPO 訓練參數...")
+    grpo_config = GRPOConfig(
+        output_dir=OUTPUT_DIR,
+        learning_rate=5e-6,                 # GRPO 的學習率通常比 SFT 小很多
+        num_train_epochs=1,                 # 跑 1 個 Epoch 即可
+        per_device_train_batch_size=1,      # 每個 GPU 處理的 prompt 數
+        gradient_accumulation_steps=4,      # 💡 吸取上次教訓，調低累積步數，讓模型更頻繁更新權重！
+        max_prompt_length=256,
+        max_completion_length=512,
+        num_generations=4,                  # 每題產生 4 個不同回答來做「組內比較 (Group Relative)」
+        temperature=0.8,
+        beta=0.04,                          # KL 懲罰項，避免偏離 SFT 模型太遠
+        bf16=True,
+        gradient_checkpointing=True,
+        logging_steps=5,
+        save_strategy="epoch",
+    )
+
+    print("\n🔥 初始化 GRPOTrainer...")
+    trainer = GRPOTrainer(
+        model=model,
+        reward_funcs=[format_reward, accuracy_reward], # 丟入我們的兩個獎勵函數
+        args=grpo_config,
+        train_dataset=dataset,
+        tokenizer=tokenizer,
+    )
+
+    print("\n🚀 開始 GRPO 訓練 (請觀察 reward/accuracy_reward 是否上升)...")
+    trainer.train()
+
+    print(f"\n💾 儲存最終 GRPO 模型至 {OUTPUT_DIR}/final...")
+    trainer.save_model(f"{OUTPUT_DIR}/final")
+    print("✅ GRPO 訓練完成！")
+
+if __name__ == "__main__":
+    main()

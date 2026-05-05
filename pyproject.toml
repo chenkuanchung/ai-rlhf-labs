@@ -12,5 +12,6 @@ dependencies = [
     "peft==0.18.1",
     "torch>=2.4.0",          # transformers 5.5.0 要求 PyTorch 2.4+
     "torchvision",           # Qwen2VLImageProcessor 必需（用到 torchvision.transforms.v2）
-    "pillow"
+    "pillow",
+    "jsonschema>=4.26.0",
 ]

@@ -1,0 +1,476 @@
+[
+  {
+    "id": "c1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "幫我查訂單 A123456789 目前狀態"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"get_order_status\",\n  \"arguments\": {\n    \"order_id\": \"A123456789\"\n  }\n}",
+    "expect": {
+      "tool": "get_order_status",
+      "arguments": {
+        "order_id": "A123456789"
+      }
+    }
+  },
+  {
+    "id": "c2",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我要查物流 TWD12345678 到哪了"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"track_shipment\",\n  \"arguments\": {\n    \"tracking_no\": \"TWD12345678\"\n  }\n}",
+    "expect": {
+      "tool": "track_shipment",
+      "arguments": {
+        "tracking_no": "TWD12345678"
+      }
+    }
+  },
+  {
+    "id": "c3",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我要退款"
+      }
+    ],
+    "predict": "請提供以下資訊以便我協助您：\n1. **訂單編號**（格式：A123456789）\n2. **退款原因**（例如：未收到貨、商品瑕疵、買錯/不需要、重複下單、其他）\n3. **補充說明**（如適用，例如：商品有瑕疵、數量錯誤等）\n\n若您已有退款案件編號（格式：R100001），也請提供，我可以查詢退款進度。",
+    "expect": {
+      "should_ask_clarification": true
+    }
+  },
+  {
+    "id": "c4",
+    "messages": [
+      {
+        "role": "user",
+        "content": "查一下訂單 A000000001 狀態，順便告訴我物流到哪"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"get_order_status\",\n  \"arguments\": {\n    \"order_id\": \"A000000001\"\n  }\n}",
+    "expect": {
+      "tool": "get_order_status",
+      "arguments": {
+        "order_id": "A000000001"
+      }
+    }
+  },
+  {
+    "id": "c5",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我的訂單是 A111111111，幫我查狀態"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"get_order_status\",\n  \"arguments\": {\n    \"order_id\": \"A111111111\"\n  }\n}",
+    "expect": {
+      "tool": "get_order_status",
+      "arguments": {
+        "order_id": "A111111111"
+      }
+    }
+  },
+  {
+    "id": "c6",
+    "messages": [
+      {
+        "role": "user",
+        "content": "幫我看看 A123456789 怎麼樣了"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"get_order_status\",\n  \"arguments\": {\n    \"order_id\": \"A123456789\"\n  }\n}",
+    "expect": {
+      "tool": "get_order_status",
+      "arguments": {
+        "order_id": "A123456789"
+      }
+    }
+  },
+  {
+    "id": "c7",
+    "messages": [
+      {
+        "role": "user",
+        "content": "請幫我取消訂單 A000000001"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"cancel_order\",\n  \"arguments\": {\n    \"order_id\": \"A000000001\"\n  }\n}",
+    "expect": {
+      "tool": "cancel_order",
+      "arguments": {
+        "order_id": "A000000001"
+      }
+    }
+  },
+  {
+    "id": "c8",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我不想要了，A123456789 這筆幫我取消"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"cancel_order\",\n  \"arguments\": {\n    \"order_id\": \"A123456789\"\n  }\n}",
+    "expect": {
+      "tool": "cancel_order",
+      "arguments": {
+        "order_id": "A123456789"
+      }
+    }
+  },
+  {
+    "id": "c9",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我要取消訂單"
+      }
+    ],
+    "predict": "請問您的訂單編號（格式為 A123456789）是什麼嗎？",
+    "expect": {
+      "should_ask_clarification": true
+    }
+  },
+  {
+    "id": "c10",
+    "messages": [
+      {
+        "role": "user",
+        "content": "幫我看一下 A123456789 買了哪些東西"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"get_order_items\",\n  \"arguments\": {\n    \"order_id\": \"A123456789\"\n  }\n}",
+    "expect": {
+      "tool": "get_order_items",
+      "arguments": {
+        "order_id": "A123456789"
+      }
+    }
+  },
+  {
+    "id": "c11",
+    "messages": [
+      {
+        "role": "user",
+        "content": "訂單 A000000001 商品明細給我看一下"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"get_order_items\",\n  \"arguments\": {\n    \"order_id\": \"A000000001\"\n  }\n}",
+    "expect": {
+      "tool": "get_order_items",
+      "arguments": {
+        "order_id": "A000000001"
+      }
+    }
+  },
+  {
+    "id": "c12",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我訂單總共多少錢？"
+      }
+    ],
+    "predict": "請問您想查詢哪筆訂單的總金額？請提供訂單編號（格式為 A123456789）。",
+    "expect": {
+      "should_ask_clarification": true
+    }
+  },
+  {
+    "id": "c13",
+    "messages": [
+      {
+        "role": "user",
+        "content": "幫我把訂單 A000000001 的地址改成：王大明，0911222333，台北市中山區某路 5 號"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"update_shipping_address\",\n  \"arguments\": {\n    \"order_id\": \"A000000001\",\n    \"recipient\": \"王大明\",\n    \"phone\": \"0911222333\",\n    \"address\": \"台北市中山區某路 5 號\"\n  }\n}",
+    "expect": {
+      "tool": "update_shipping_address",
+      "arguments": {
+        "order_id": "A000000001",
+        "recipient": "王大明",
+        "phone": "0911222333",
+        "address": "台北市中山區某路 5 號"
+      }
+    }
+  },
+  {
+    "id": "c14",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我要改寄送地址"
+      }
+    ],
+    "predict": "您想修改尚未出貨的訂單配送地址，請問您的訂單編號（格式為 A123456789）以及新的收件人資訊（姓名、電話、地址）嗎？",
+    "expect": {
+      "should_ask_clarification": true
+    }
+  },
+  {
+    "id": "c15",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我訂單 A000000001 想改地址"
+      }
+    ],
+    "predict": "您想修改尚未出貨的訂單 A000000001 的配送地址，請問需要更新以下資訊嗎？\n\n1. **收件人姓名**\n2. **收件人聯絡電話**（格式：09XXXXXXXX）\n3. **完整配送地址**（含縣市、區、路名、門牌）",
+    "expect": {
+      "should_ask_clarification": true
+    }
+  },
+  {
+    "id": "c16",
+    "messages": [
+      {
+        "role": "user",
+        "content": "幫我查退款案件 R100001 進度"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"get_refund_status\",\n  \"arguments\": {\n    \"case_id\": \"R100001\"\n  }\n}",
+    "expect": {
+      "tool": "get_refund_status",
+      "arguments": {
+        "case_id": "R100001"
+      }
+    }
+  },
+  {
+    "id": "c17",
+    "messages": [
+      {
+        "role": "user",
+        "content": "R100002 退款好了沒？"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"get_refund_status\",\n  \"arguments\": {\n    \"case_id\": \"R100002\"\n  }\n}",
+    "expect": {
+      "tool": "get_refund_status",
+      "arguments": {
+        "case_id": "R100002"
+      }
+    }
+  },
+  {
+    "id": "c18",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我的退款進度怎麼樣？"
+      }
+    ],
+    "predict": "請問您的退款案件編號（格式為 R 開頭的數字，例如 R100001）嗎？",
+    "expect": {
+      "should_ask_clarification": true
+    }
+  },
+  {
+    "id": "c19",
+    "messages": [
+      {
+        "role": "user",
+        "content": "幫我把優惠碼 WELCOME100 套用到訂單 A000000001"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"apply_coupon\",\n  \"arguments\": {\n    \"order_id\": \"A000000001\",\n    \"coupon_code\": \"WELCOME100\"\n  }\n}",
+    "expect": {
+      "tool": "apply_coupon",
+      "arguments": {
+        "order_id": "A000000001",
+        "coupon_code": "WELCOME100"
+      }
+    }
+  },
+  {
+    "id": "c20",
+    "messages": [
+      {
+        "role": "user",
+        "content": "訂單 A123456789 我想用 VIP500 折抵"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"apply_coupon\",\n  \"arguments\": {\n    \"order_id\": \"A123456789\",\n    \"coupon_code\": \"VIP500\"\n  }\n}",
+    "expect": {
+      "tool": "apply_coupon",
+      "arguments": {
+        "order_id": "A123456789",
+        "coupon_code": "VIP500"
+      }
+    }
+  },
+  {
+    "id": "c21",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我有一張優惠券 WELCOME100 想用"
+      }
+    ],
+    "predict": "您想將優惠碼 WELCOME100 套用到哪張訂單？請提供訂單編號（格式為 A123456789），我即可為您查詢並執行套用。",
+    "expect": {
+      "should_ask_clarification": true
+    }
+  },
+  {
+    "id": "c22",
+    "messages": [
+      {
+        "role": "user",
+        "content": "幫我看看 SKU000001 還有沒有貨"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"check_product_stock\",\n  \"arguments\": {\n    \"sku\": \"SKU000001\"\n  }\n}",
+    "expect": {
+      "tool": "check_product_stock",
+      "arguments": {
+        "sku": "SKU000001"
+      }
+    }
+  },
+  {
+    "id": "c23",
+    "messages": [
+      {
+        "role": "user",
+        "content": "SKU000002 庫存還剩多少？"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"check_product_stock\",\n  \"arguments\": {\n    \"sku\": \"SKU000002\"\n  }\n}",
+    "expect": {
+      "tool": "check_product_stock",
+      "arguments": {
+        "sku": "SKU000002"
+      }
+    }
+  },
+  {
+    "id": "c24",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我想買藍牙耳機，還有貨嗎？"
+      }
+    ],
+    "predict": "您好！請問您想查詢的是哪一款藍牙耳機的庫存情況？\n\n請提供該耳機的 **SKU（商品編號）**，例如：`SKU000001`。",
+    "expect": {
+      "should_ask_clarification": true
+    }
+  },
+  {
+    "id": "c25",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我要找真人客服"
+      }
+    ],
+    "predict": "我將為您轉接給真人客服處理。\n\n**轉接主題：** 其他\n**案件摘要：** 使用者希望尋找真人客服協助。\n**相關訂單編號：** A123456789",
+    "expect": {
+      "should_ask_clarification": true
+    }
+  },
+  {
+    "id": "c26",
+    "messages": [
+      {
+        "role": "user",
+        "content": "訂單 A123456789 出問題了想投訴，請轉真人客服處理退換貨"
+      }
+    ],
+    "predict": "{\n  \"type\": \"escalate_to_human\",\n  \"topic\": \"退換貨\",\n  \"summary\": \"用戶對訂單 A123456789 提出投訴，希望轉接真人客服處理退換貨事宜。\",\n  \"order_id\": \"A123456789\"\n}",
+    "expect": {
+      "tool": "escalate_to_human"
+    }
+  },
+  {
+    "id": "c27",
+    "messages": [
+      {
+        "role": "user",
+        "content": "我要退款，訂單 A123456789，因為東西壞了"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"get_order_items\",\n  \"arguments\": {\n    \"order_id\": \"A123456789\"\n  }\n}",
+    "expect": {
+      "tool": "create_refund_request",
+      "arguments": {
+        "order_id": "A123456789",
+        "reason": "商品瑕疵"
+      }
+    }
+  },
+  {
+    "id": "c28",
+    "messages": [
+      {
+        "role": "user",
+        "content": "訂單 A000000001 我重複下單了，幫我退款"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"create_refund_request\",\n  \"arguments\": {\n    \"order_id\": \"A000000001\",\n    \"reason\": \"重複下單\",\n    \"details\": \"用戶表示已下過該訂單，希望進行退款處理。\"\n  }\n}",
+    "expect": {
+      "tool": "create_refund_request",
+      "arguments": {
+        "order_id": "A000000001",
+        "reason": "重複下單"
+      }
+    }
+  },
+  {
+    "id": "c29",
+    "messages": [
+      {
+        "role": "user",
+        "content": "TWD87654321 物流到哪了？"
+      }
+    ],
+    "predict": "{\n  \"type\": \"tool_call\",\n  \"name\": \"track_shipment\",\n  \"arguments\": {\n    \"tracking_no\": \"TWD87654321\"\n  }\n}",
+    "expect": {
+      "tool": "track_shipment",
+      "arguments": {
+        "tracking_no": "TWD87654321"
+      }
+    }
+  },
+  {
+    "id": "c30",
+    "messages": [
+      {
+        "role": "user",
+        "content": "請問你們營業時間是幾點？"
+      }
+    ],
+    "predict": "作為「訂單客服助理」，我主要協助處理訂單查詢、退款申請、物流追蹤等業務相關問題。關於營業時間，這取決於您所使用的平台或系統（例如：網站、App、電話客服等），不同平台營業時間可能不同。\n\n請問您具體需要查詢哪種平台的營業時間？或者您是否有其他關於訂單的問題需要協助？",
+    "expect": {}
+  },
+  {
+    "id": "c31",
+    "messages": [
+      {
+        "role": "user",
+        "content": "請問你們可以用什麼方式付款？"
+      }
+    ],
+    "predict": "我們目前支援以下付款方式：\n\n1. **信用卡/ debit card**：支援 Visa、MasterCard、JCB 等國際卡種。\n2. **PayPal**：可透過 PayPal 進行付款。\n3. **電子錢包**：支援 Apple Pay、Google Pay、Samsung Pay 等。\n4. **超商取貨付款**：可選擇在門市取貨時使用現金或信用卡付款。\n\n請問您希望使用哪種付款方式？或者您有特定的優惠碼或折扣碼想要套用到訂單嗎？",
+    "expect": {}
+  },
+  {
+    "id": "c32",
+    "messages": [
+      {
+        "role": "user",
+        "content": "謝謝你的幫忙"
+      }
+    ],
+    "predict": "沒問題，有任何需要隨時告訴我！",
+    "expect": {}
+  }
+]
